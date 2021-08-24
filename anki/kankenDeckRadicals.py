@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 
 ANKI_CONNECT_URL = 'http://localhost:8765'
 KANJI_DICT_URL = "https://dictionary.goo.ne.jp/word/kanji/"
+known_radicals = {}
 
 class bcolors:
     HEADER = '\033[95m'
@@ -19,6 +20,7 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
 
 def request(action, **params):
     return {'action': action, 'params': params, 'version': 6}
@@ -39,7 +41,7 @@ def invoke(action, **params):
 
 
 def get_all_kanken_notes():
-    cards = invoke('findCards', query='"deck:全::1.日本語::1.漢字::漢字検定::Level 10-4::2. Level 8"')
+    cards = invoke('findCards', query='"deck:全::1.日本語::1.漢字::漢字検定::Level 10-4::4. Level 6"')
     notes = invoke('cardsToNotes', cards=cards)
     return notes
 
@@ -53,19 +55,25 @@ def get_radical_for_kanji(pKanji):
 
     radical_list = []
     for i, kanji in enumerate(kanji_chars):
-        url = KANJI_DICT_URL + kanji
-        req = requests.get(url)
-        soup = BeautifulSoup(req.text, "html.parser")
+        if kanji in known_radicals:
+            print("Previously known character")
+            radical_list.append("(" + str(i + 1) + ") " + known_radicals[kanji])
+        else:
+            print("New character")
+            url = KANJI_DICT_URL + kanji
+            req = requests.get(url)
+            soup = BeautifulSoup(req.text, "html.parser")
 
-        try:
-            info_box = soup.find_all("div", {"class": "info"})[0]
-            radical_section = info_box.find_all("dd")[0]
+            try:
+                info_box = soup.find_all("div", {"class": "info"})[0]
+                radical_section = info_box.find_all("dd")[0]
 
-            radical = radical_section.text.replace(" ", "").replace("\n", "")
-            radical_list.append("(" + str(i + 1) + ") " + radical)
-        except IndexError:
-            print(f"{bcolors.WARNING}Encountered illegal character{bcolors.ENDC}")
-            return ""
+                radical = radical_section.text.replace(" ", "").replace("\n", "")
+                radical_list.append("(" + str(i + 1) + ") " + radical)
+                known_radicals[kanji] = radical
+            except IndexError:
+                print(f"{bcolors.WARNING}Encountered illegal character{bcolors.ENDC}")
+                return ""
 
     return " ".join(radical_list)
 
@@ -81,6 +89,9 @@ def add_radical(note_id):
 
 
 kanken_notes = get_all_kanken_notes()
-for i, note in enumerate(kanken_notes):
+index_to_start = 0
+
+print("Adding radicals to ", len(kanken_notes) - index_to_start, " cards")
+for i, note in enumerate(kanken_notes[index_to_start:]):
     print(f"{bcolors.HEADER}--------- Card #" + str(i + 1) + f" ---------{bcolors.ENDC}")
     add_radical(note)
